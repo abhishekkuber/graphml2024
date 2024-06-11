@@ -1,0 +1,8 @@
+Hybrid model:
+first run "python embedding.py" to generate embeddings
+then run "python eval_hybrid" to evaluate the model
+the result is in data/eval_results/hybrid_output.txt
+
+MPM:
+directly run "python eval_mpm.py"
+the result is in data/eval_results/mpm_output.txt

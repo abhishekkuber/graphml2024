@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+tf.compat.v1.disable_eager_execution()
 import networkx as nx
 import numpy as np
 
@@ -30,15 +30,20 @@ class Graph(object):
             self.G[i][j]['weight'] = 1.0
         self.encode_node()
 
-    def add_edgelist(self, mirna_disease, mirna_pcg, disease_pcg, pcg_pcg, n_mirna, n_disease, n_pcg, weighted=False, directed=False):
+    def add_edgelist(self, mirna_disease, mirna_pcg, disease_pcg, pcg_pcg, mirna_mirna, disease_disease, n_mirna, n_disease, n_pcg, weighted=False, directed=False):
         self.G = nx.Graph()
         nodes = list(range(n_mirna+n_disease+n_pcg))
         self.G.add_nodes_from(nodes)
-        mirna_disease = [[item[0], item[1]+n_mirna] for item in mirna_disease]
+        mirna_disease = [[item[0], item[1] + n_mirna] for item in mirna_disease]
         mirna_pcg = [[item[0], item[1] + n_mirna+n_disease] for item in mirna_pcg]
-        disease_pcg = [[item[0], item[1] + n_mirna+n_disease] for item in disease_pcg]
+        disease_pcg = [[item[0] + n_mirna, item[1] + n_mirna+n_disease] for item in disease_pcg]
         pcg_pcg = [[item[0] + n_mirna+n_disease, item[1] + n_mirna+n_disease] for item in pcg_pcg]
-        edges = mirna_disease + mirna_pcg + disease_pcg + pcg_pcg
+        if mirna_mirna !=None and disease_disease != None:
+            mirna_mirna = [[item[0], item[1]] for item in mirna_mirna]
+            disease_disease = [[item[0] + n_mirna, item[1] + n_mirna] for item in disease_disease]
+            edges = mirna_disease + mirna_pcg + disease_pcg + pcg_pcg + mirna_mirna + disease_disease
+        else:
+            edges = mirna_disease + mirna_pcg + disease_pcg + pcg_pcg
         self.G.add_edges_from(edges)
         self.encode_node()
 
@@ -83,12 +88,9 @@ class Graph(object):
 
 
 def fc_op(input_op, name, n_out, layer_collector, act_func=tf.nn.leaky_relu):
-    # n_in = input_op.get_shape()[-1].value  # int object has no attribute value TODO: replaced
     n_in = input_op.get_shape()[-1]
-    with tf.name_scope(name) as scope:
-        # kernel = tf.Variable(tf.contrib.layers.xavier_initializer()([n_in, n_out]), dtype=tf.float32, name=scope + "w") # deprecated TODO: replaced
-        kernel = tf.Variable(tf.compat.v1.keras.initializers.glorot_normal()([n_in, n_out]), dtype=tf.float32, name=scope + "w")
-
+    with tf.compat.v1.name_scope(name) as scope:
+        kernel = tf.Variable(tf.compat.v1.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform")([n_in, n_out]), dtype=tf.float32, name=scope + "w")
         biases = tf.Variable(tf.constant(0, shape=[1, n_out], dtype=tf.float32), name=scope + 'b')
 
         fc = tf.add(tf.matmul(input_op, kernel), biases)
@@ -117,7 +119,7 @@ class SDNE(object):
         self.max_iter = max_iter
         self.lr = learning_rate
 
-        self.sess = tf.compat.v1.Session()    # tf.Session() is deprecated TODO: replaced
+        self.sess = tf.compat.v1.Session()
         self.vectors = {}
 
         self.adj_mat = self.getAdj()
@@ -139,12 +141,6 @@ class SDNE(object):
     def get_train(self):
         adj_mat = self.adj_mat
 
-        # AdjBatch = tf.placeholder(tf.float32, [None, self.node_size], name='adj_batch')
-        # Adj = tf.placeholder(tf.float32, [None, None], name='adj_mat')
-        # B = tf.placeholder(tf.float32, [None, self.node_size], name='b_mat')
-
-        # placeholder is deprecated TODO: replaced
-        tf.compat.v1.disable_eager_execution()  # TODO: added
         AdjBatch = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='adj_batch')
         Adj = tf.compat.v1.placeholder(tf.float32, [None, None], name='adj_mat')
         B = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='b_mat')
@@ -153,7 +149,7 @@ class SDNE(object):
         scope_name = 'encoder'
         layer_collector = []
 
-        with tf.name_scope(scope_name):
+        with tf.compat.v1.name_scope(scope_name):
             for i in range(1, self.encoder_layer_num):
                 #print(i)
                 fc = fc_op(fc,
@@ -164,7 +160,7 @@ class SDNE(object):
         _embeddings = fc
 
         scope_name = 'decoder'
-        with tf.name_scope(scope_name):
+        with tf.compat.v1.name_scope(scope_name):
             for i in range(self.encoder_layer_num-2, 0, -1):
                 #print(i)
                 fc = fc_op(fc,
@@ -176,7 +172,6 @@ class SDNE(object):
                        n_out=self.encoder_layer_list[0],
                        layer_collector=layer_collector,)
 
-        # _embeddings_norm = tf.reduce_sum(tf.square(_embeddings), 1, keep_dims=True)  # keep_dims is keepdims TODO: replaced
         _embeddings_norm = tf.reduce_sum(tf.square(_embeddings), 1, keepdims=True)
 
         L_1st = tf.reduce_sum(
@@ -194,12 +189,10 @@ class SDNE(object):
         for param in layer_collector:
             L += self.nu * (tf.reduce_sum(tf.square(param[0]) + tf.abs(param[0])))
 
-        # optimizer = tf.train.AdamOptimizer()       # deprecated TODO: replaced
         optimizer = tf.compat.v1.train.AdamOptimizer()
 
         train_op = optimizer.minimize(L)
 
-        # init = tf.global_variables_initializer()   # deprecated TODO: replaced
         init = tf.compat.v1.global_variables_initializer()
         self.sess.run(init)
 
