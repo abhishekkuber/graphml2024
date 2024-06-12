@@ -43,114 +43,16 @@ def get_pareto_front(losses, weights, num_samples=100):
     return pareto_front
 
 def main():
-    ## read data from files
 
-    # embeddings
-    mirna = pd.read_csv('data/generated_data/mirna_emb.csv',
-                        header=None).values.tolist()
-    mirna_emb = t.FloatTensor(mirna)
-    disease = pd.read_csv('data/generated_data/disease_emb.csv',
-                          header=None).values.tolist()
-    disease_emb = t.FloatTensor(disease)
-    pcg = pd.read_csv('data/generated_data/pcg_emb.csv',
-                      header=None).values.tolist()
-    pcg_emb = t.FloatTensor(pcg)
-
-    # training data
-    _, train_tensor, train_lbl_tensor = read_int_data(
-        'data/training_data/hmdd2_pos.csv',
-        'data/training_data/hmdd2_neg1_0.csv')
-
-    # others
-    disease_onto = pd.read_csv(
-        'data/original_data/disease_onto_pos.csv').values.tolist()
-    disease_pcg = pd.read_csv('data/generated_data/disease_pcg.csv',
-                              header=None).values.tolist()
-    hppi = pd.read_csv('data/generated_data/pcg_pcg.csv',
-                       header=None).values.tolist()
-    mirna_family = pd.read_csv(
-        'data/original_data/mirna_fam_pos.csv').values.tolist()
-    mirna_pcg = pd.read_csv('data/generated_data/mirna_pcg.csv',
-                            header=None).values.tolist()
-
-    disease_pcg_pairs = list()
-    disease_pcg_weight = list()
-    mirna_pcg_pairs = list()
-    mirna_pcg_weight = list()
-    mirna_edgelist = list()
-    mirna_edgeweight = list()
-    disease_edgelist = list()
-    disease_edgeweight = list()
-    ppi_edgelist = list()
-    ppi_edgeweight = list()
-
-    for p in mirna_family:       # 2 mirnas are connected if they belong to the same family
-        idx1 = p[0]
-        idx2 = p[1]
-        mirna_edgelist.append([idx1, idx2])
-        mirna_edgelist.append([idx2, idx1])
-        mirna_edgeweight.append(1)
-        mirna_edgeweight.append(1)
-
-    for p in disease_onto:       # [children, parent] disease pairs
-        idx1 = p[0]
-        idx2 = p[1]
-        disease_edgelist.append([idx1, idx2])
-        disease_edgeweight.append(1)
-
-    for p in hppi:               # [hprot1,hprot2,score] (human protein-protein interaction)
-        idx1 = int(p[0])
-        idx2 = int(p[1])
-        ppi_edgelist.append([idx1, idx2])
-        ppi_edgeweight.append(1)
-        ppi_edgelist.append([idx2, idx1])
-        ppi_edgeweight.append(1)
-
-    for p in mirna_pcg:           # [mirna,pcg,score]
-        idx1 = p[0]
-        idx2 = p[1]
-        mirna_pcg_pairs.append([idx1, idx2])
-        mirna_pcg_weight.append(1)
-
-    for p in disease_pcg:        # [disease,pcg,score]
-        idx1 = p[0]
-        idx2 = p[1]
-        disease_pcg_pairs.append([idx1, idx2])
-        disease_pcg_weight.append(1)
-
-    disease_pcg_pairs = t.LongTensor(disease_pcg_pairs)
-    disease_pcg_weight = t.FloatTensor(disease_pcg_weight)
-    mirna_pcg_pairs = t.LongTensor(mirna_pcg_pairs)
-    mirna_pcg_weight = t.FloatTensor(mirna_pcg_weight)
-    mirna_edgelist = t.LongTensor(mirna_edgelist)
-    mirna_edgeweight = t.FloatTensor(mirna_edgeweight)
-    disease_edgelist = t.LongTensor(disease_edgelist)
-    disease_edgeweight = t.FloatTensor(disease_edgeweight)
-    ppi_edgelist = t.LongTensor(ppi_edgelist)
-    ppi_edgeweight = t.FloatTensor(ppi_edgeweight)
 
     criterion = t.nn.BCELoss()
     l1loss = t.nn.MSELoss()
 
     # Check for CUDA availability
-    device = t.device('cuda' if t.cuda.is_available() else 'cpu')
+    device = get_device()
+    data = load_data(device)
 
-    # Move tensors to device (GPU or CPU)
-    mirna_emb = mirna_emb.to(device)
-    disease_emb = disease_emb.to(device)
-    pcg_emb = pcg_emb.to(device)
-    mirna_edgelist = mirna_edgelist.to(device)
-    mirna_edgeweight = mirna_edgeweight.to(device)
-    disease_edgelist = disease_edgelist.to(device)
-    disease_edgeweight = disease_edgeweight.to(device)
-    ppi_edgelist = ppi_edgelist.to(device)
-    ppi_edgeweight = ppi_edgeweight.to(device)
-    mirna_pcg_pairs = mirna_pcg_pairs.to(device)
-    disease_pcg_pairs = disease_pcg_pairs.to(device)
-    train_tensor = train_tensor.to(device)
-    train_lbl_tensor = train_lbl_tensor.to(device)
-    mirna_pcg_weight = mirna_pcg_weight.to(device)
-    disease_pcg_weight = disease_pcg_weight.to(device)
+
     criterion = criterion.to(device)
     l1loss = l1loss.to(device)
 
@@ -175,9 +77,7 @@ def main():
                 _, test_tensor, test_lbl = read_int_data(pos_test_path, neg_test_path)
                 datasrc = pos_test_path[pos_test_path.rfind('/') + 1:].replace('.csv', '')
                 test_tensor = test_tensor.to(device)
-                assoc_out, mirna_pcg_out, disease_pcg_out = model(mirna_emb, disease_emb, pcg_emb, mirna_edgelist,
-                                                                  mirna_edgeweight, disease_edgelist, disease_edgeweight,
-                                                                  ppi_edgelist, ppi_edgeweight, mirna_pcg_pairs, disease_pcg_pairs, test_tensor)
+                assoc_out, mirna_pcg_out, disease_pcg_out = model(data, test_tensor)
 
                 auc_score, ap_score, sn, sp, acc, prec, rec, f1, mcc = get_all_score(test_lbl, assoc_out.detach().cpu().numpy())
                 tmp_score = [auc_score, ap_score, sn, sp, acc, prec, rec, f1]
@@ -190,8 +90,8 @@ def main():
                 # Loss and acc
                 avg_acc += acc
 
-                tloss0, tloss1, tloss2 = criterion(assoc_out, test_lbl), l1loss(mirna_pcg_out, mirna_pcg_weight), l1loss(disease_pcg_out,
-                                                                                                                         disease_pcg_weight)
+                tloss0, tloss1, tloss2 = criterion(assoc_out, test_lbl), l1loss(mirna_pcg_out, data["mirna_pcg_weight"]), l1loss(disease_pcg_out,
+                                                                                                                         data["disease_pcg_weight"])
                 tloss = w1 * tloss0 + w2 * tloss1 + w3 * tloss2
                 test_loss = tloss.item()
                 avg_loss += test_loss
@@ -214,20 +114,10 @@ def main():
     for epoch in range(0, 200):
         model.train()
         model.zero_grad()
-        assoc_out, mirna_pcg_out, disease_pcg_out = model(mirna_emb,
-                                                          disease_emb, pcg_emb,
-                                                          mirna_edgelist,
-                                                          mirna_edgeweight,
-                                                          disease_edgelist,
-                                                          disease_edgeweight,
-                                                          ppi_edgelist,
-                                                          ppi_edgeweight,
-                                                          mirna_pcg_pairs,
-                                                          disease_pcg_pairs,
-                                                          train_tensor)
-        loss0 = criterion(assoc_out, train_lbl_tensor)
-        loss1 = l1loss(mirna_pcg_out, mirna_pcg_weight)
-        loss2 = l1loss(disease_pcg_out, disease_pcg_weight)
+        assoc_out, mirna_pcg_out, disease_pcg_out = model(data, data["train_tensor"])
+        loss0 = criterion(assoc_out, data["train_lbl_tensor"])
+        loss1 = l1loss(mirna_pcg_out, data["mirna_pcg_weight"])
+        loss2 = l1loss(disease_pcg_out, data["disease_pcg_weight"])
         loss = w1 * loss0 + w2 * loss1 + w3 * loss2
         
         # l1 = loss0.item()
@@ -247,7 +137,7 @@ def main():
         optimizer.step()
         loss_val = loss.item()
 
-        print('Epoch: ', epoch, ' loss: ', loss_val / train_lbl_tensor.size(0))
+        print('Epoch: ', epoch, ' loss: ', loss_val / data["train_lbl_tensor"].size(0))
 
         if epoch % 1 == 0:
             train_losses.append(loss_val)
@@ -258,6 +148,8 @@ def main():
 
             print('Test loss: ', avg_loss, ' Test acc: ', avg_acc)
 
+    # Save model after training
+    save_hybrid_model(model)
 
     # Plot the losses and test accuracy
     plt.figure()

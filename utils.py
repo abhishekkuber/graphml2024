@@ -207,3 +207,88 @@ def calculate_gip(matrix):
     KD = np.asarray(kd)
 
     return KM, KD
+
+
+## GENERAL
+def get_device():
+    return t.device('cuda' if t.cuda.is_available() else 'cpu')
+
+
+## SAVING AND LOADING MODELS
+HYBRID_MODEL_PATH = "trained_models"
+
+
+def get_hybrid_model_path():
+    return f"{HYBRID_MODEL_PATH}/hybrid.model"
+
+
+def save_hybrid_model(model):
+    print("hybrid model saved")
+    t.save(model.state_dict(), get_hybrid_model_path())
+
+
+def load_hybrid_model():
+    return t.load(get_hybrid_model_path())
+
+
+##LOADING DATA
+
+def read_int_data(pos_path, neg_path):
+    pos_df = pd.read_csv(pos_path).values.tolist()
+    neg_df = pd.read_csv(neg_path).values.tolist()
+    int_edges = pos_df + neg_df
+    int_lbl = [1] * len(pos_df) + [0] * len(neg_df)
+    return pos_df, t.LongTensor(int_edges), t.FloatTensor(int_lbl)
+
+
+def load_data(device='cpu'):
+    # embeddings
+    mirna_emb = t.FloatTensor(pd.read_csv('data/generated_data/mirna_emb.csv', header=None).values)
+    disease_emb = t.FloatTensor(pd.read_csv('data/generated_data/disease_emb.csv', header=None).values)
+    pcg_emb = t.FloatTensor(pd.read_csv('data/generated_data/pcg_emb.csv', header=None).values)
+
+    # training data
+    _, train_tensor, train_lbl_tensor = read_int_data('data/training_data/hmdd2_pos.csv',
+                                                      'data/training_data/hmdd2_neg1_0.csv')
+
+    # others
+    disease_onto = pd.read_csv('data/original_data/disease_onto_pos.csv').values.tolist()
+    disease_pcg = pd.read_csv('data/generated_data/disease_pcg.csv', header=None).values.tolist()
+    hppi = pd.read_csv('data/generated_data/pcg_pcg.csv', header=None).values.tolist()
+    mirna_family = pd.read_csv('data/original_data/mirna_fam_pos.csv').values.tolist()
+    mirna_pcg = pd.read_csv('data/generated_data/mirna_pcg.csv', header=None).values.tolist()
+
+    # Convert lists to tensors
+    disease_pcg_pairs = t.LongTensor([[p[0], p[1]] for p in disease_pcg])
+    disease_pcg_weight = t.FloatTensor([1 for _ in disease_pcg])
+    mirna_pcg_pairs = t.LongTensor([[p[0], p[1]] for p in mirna_pcg])
+    mirna_pcg_weight = t.FloatTensor([1 for _ in mirna_pcg])
+    mirna_edgelist = t.LongTensor([[p[0], p[1]] for p in mirna_family] + [[p[1], p[0]] for p in mirna_family])
+    mirna_edgeweight = t.FloatTensor([1 for _ in mirna_family] * 2)
+    disease_edgelist = t.LongTensor([[p[0], p[1]] for p in disease_onto])
+    disease_edgeweight = t.FloatTensor([1 for _ in disease_onto])
+    ppi_edgelist = t.LongTensor([[int(p[0]), int(p[1])] for p in hppi] + [[int(p[1]), int(p[0])] for p in hppi])
+    ppi_edgeweight = t.FloatTensor([1 for _ in hppi] * 2)
+
+    data = {
+        'mirna_emb': mirna_emb,
+        'disease_emb': disease_emb,
+        'pcg_emb': pcg_emb,
+        'train_tensor': train_tensor,
+        'train_lbl_tensor': train_lbl_tensor,
+        'disease_pcg_pairs': disease_pcg_pairs,
+        'disease_pcg_weight': disease_pcg_weight,
+        'mirna_pcg_pairs': mirna_pcg_pairs,
+        'mirna_pcg_weight': mirna_pcg_weight,
+        'mirna_edgelist': mirna_edgelist,
+        'mirna_edgeweight': mirna_edgeweight,
+        'disease_edgelist': disease_edgelist,
+        'disease_edgeweight': disease_edgeweight,
+        'ppi_edgelist': ppi_edgelist,
+        'ppi_edgeweight': ppi_edgeweight
+    }
+
+    for key, tensor in data.items():
+        data[key] = tensor.to(device)
+
+    return data
