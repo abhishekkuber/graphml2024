@@ -6,6 +6,13 @@ from utils import *
 import torch as t
 import pandas as pd
 
+import os
+
+def ensure_dir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 def read_int_data(pos_path, neg_path):
     pos_df = pd.read_csv(pos_path).values.tolist()
     neg_df = pd.read_csv(neg_path).values.tolist()
@@ -151,6 +158,8 @@ def main():
     # Save model after training
     save_hybrid_model(model)
 
+    ensure_dir('plots/pareto')
+
     # Plot the losses and test accuracy
     plt.figure()
     plt.plot(train_losses, label='Training loss')
@@ -172,6 +181,9 @@ def main():
 
     ## evaluate the model
     all_scores, _, _ = eval(model, neg_rates=[1, 5, 10])
+
+    # Ensure the directory for evaluation results exists
+    ensure_dir('data/eval_results')
 
     ## write the results into file
     writer = open('data/eval_results/hybrid_output.txt', 'w+')
