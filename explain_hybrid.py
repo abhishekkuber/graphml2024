@@ -15,24 +15,7 @@ def visualize_feature_importance(explanation, node_idx, top_k=50):
 def explain_model(model, data, device):
     model.eval()
 
-    additional_data = {
-        "mirna_pcg_pairs": data["mirna_pcg_pairs"],
-        "disease_pcg_pairs": data["disease_pcg_pairs"],
-        "mirna_edgeweight": data["mirna_edgeweight"],
-        "disease_edgeweight": data["disease_edgeweight"],
-        "ppi_edgeweight": data["ppi_edgeweight"],
-        "train_tensor": data["train_tensor"]
-    }
-
-    wrapper_model = MuCoMiDWrapper(model, additional_data)
-
-    wrapper_model.model.num_mirna_nodes = data["mirna_emb"].size(0)
-    wrapper_model.model.num_disease_nodes = data["disease_emb"].size(0)
-    wrapper_model.model.num_pcg_nodes = data["pcg_emb"].size(0)
-
-    wrapper_model.model.num_mirna_edges = data["mirna_edgelist"].size(0)
-    wrapper_model.model.num_disease_edges = data["disease_edgelist"].size(0)
-    wrapper_model.model.num_pcg_edges = data["pcg_emb"].size(0)
+    wrapper_model = MuCoMiDWrapper(model, data)
 
     model_config = ModelConfig(
         mode='multiclass_classification',
@@ -50,12 +33,16 @@ def explain_model(model, data, device):
     )
 
     # Choose a node indexes to explain
-    ind = [0]
+    ind = [1]
 
     # Prepare the input data as required by GNNExplainer
-    x = torch.cat((data["mirna_emb"], data["disease_emb"], data["pcg_emb"]), 0)
-    edge_index = torch.cat((data["mirna_edgelist"], data["disease_edgelist"], data["ppi_edgelist"]), 0)
-    edge_weight = torch.cat((data["mirna_edgeweight"], data["disease_edgeweight"], data["ppi_edgeweight"]), 0)
+    # x = torch.cat((data["mirna_emb"], data["disease_emb"], data["pcg_emb"]), 0)
+    # edge_index = torch.cat((data["mirna_edgelist"], data["disease_edgelist"], data["ppi_edgelist"]), 0)
+    # edge_weight = torch.cat((data["mirna_edgeweight"], data["disease_edgeweight"], data["ppi_edgeweight"]), 0)
+
+    # Explain the mirna embeddings, make sure to use the right settings in the wrapper too for this.
+    x = data["mirna_emb"]
+    edge_index = data["mirna_edgelist"]
 
     explanations = []
     gnn_explainer_feature_masks = []

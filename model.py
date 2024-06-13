@@ -56,31 +56,17 @@ class MuCoMiD(nn.Module):
 
 
 class MuCoMiDWrapper(nn.Module):
-    def __init__(self, model, additional_data):
+    def __init__(self, model, data):
         super(MuCoMiDWrapper, self).__init__()
         self.model = model
-        self.additional_data = additional_data
+        self.data = data
 
     def forward(self, x, edge_index, edge_weight=None):
-        print(f"x: {x.shape}, edge_index: {edge_index.shape}")
         # Reconstruct the data dictionary expected by MuCoMiD
-        data = {
-            "mirna_emb": x[:self.model.num_mirna_nodes],
-            "disease_emb": x[self.model.num_mirna_nodes:self.model.num_mirna_nodes+self.model.num_disease_nodes],
-            "pcg_emb": x[-self.model.num_pcg_nodes:],
-
-            "mirna_edgelist": edge_index[:self.model.num_mirna_edges, :],
-            "disease_edgelist": edge_index[self.model.num_mirna_edges:self.model.num_mirna_edges+self.model.num_disease_edges, :],
-            "ppi_edgelist": edge_index[self.model.num_mirna_edges+self.model.num_disease_edges:, :],
-
-            # Add the additional data stored in the wrapper
-            "mirna_pcg_pairs": self.additional_data["mirna_pcg_pairs"],
-            "disease_pcg_pairs": self.additional_data["disease_pcg_pairs"],
-            "mirna_edgeweight": self.additional_data["mirna_edgeweight"],
-            "disease_edgeweight": self.additional_data["disease_edgeweight"],
-            "ppi_edgeweight": self.additional_data["ppi_edgeweight"]
-        }
+        data = self.data
+        data["mirna_emb"] = x
+        data["mirna_edgelist"] = edge_index
 
         # Call the model with the reconstructed data dictionary
-        result, _, _ = self.model(data, self.additional_data["train_tensor"])
+        result, _, _ = self.model(data, self.data["train_tensor"])
         return result
