@@ -18,9 +18,9 @@ def explain_model(model, data, device):
     wrapper_model = MuCoMiDWrapper(model, data)
 
     model_config = ModelConfig(
-        mode='multiclass_classification',
+        mode='regression',
         task_level='node',
-        return_type='log_probs'
+        return_type='raw'
     )
 
     explainer = Explainer(
@@ -42,7 +42,7 @@ def explain_model(model, data, device):
 
     # Explain the mirna embeddings, make sure to use the right settings in the wrapper too for this.
     x = data["mirna_emb"]
-    edge_index = data["mirna_edgelist"]
+    edge_index = data["mirna_edgelist"].t()
 
     explanations = []
     gnn_explainer_feature_masks = []
