@@ -54,3 +54,11 @@ class MuCoMiD(nn.Module):
 
         return assoc_out.squeeze(), mirna_pcg_out.squeeze(), disease_pcg_out.squeeze()
 
+class MuCoMiDWrapper(nn.Module):
+    def _init_(self, model, data):
+        super(MuCoMiDWrapper, self)._init_()
+        self.model = model
+        self.data = data
+
+    def forward(self, x, edge_index, edge_weight=None):
+        return self.model.relu(self.model.mgcn(x, edge_index, edge_weight))

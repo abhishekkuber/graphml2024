@@ -1,20 +1,9 @@
-"""
-To use the explainer from GNNExplainer, the input data must be in the following format:
-x(torch.Tensor): Shape (N, F) where N is the number of nodes and F is the number of features per node.
-edge_index(torch.Tensor): Shape (2, E) where E is the number of edges.
-edge_weight(torch.Tensor): Shape (E,) where E is the number of edges (optional).
-index (int): shape () or (I,) where I is the number of nodes to explain (optional).
-"""
-
 import torch
 from torch_geometric.explain import GNNExplainer, ExplainerConfig, ModelConfig, Explainer
-from model import MuCoMiD, MuCoMiDWrapper
+from model import MuCoMiD, MuCoMiDWrapper  # Import your model definition
 import matplotlib.pyplot as plt
-from torch_geometric.utils import add_remaining_self_loops
+
 from utils import *
-
-
-
 
 
 def visualize_feature_importance(explanation, node_idx, top_k=50):
@@ -22,11 +11,10 @@ def visualize_feature_importance(explanation, node_idx, top_k=50):
     explanation.visualize_feature_importance(path, top_k=top_k)
     print(f"Feature importance plot for node {node_idx} has been saved to '{path}'")
 
-import torch
-from torch_geometric.utils import add_remaining_self_loops
 
 def explain_model(model, data, device):
     model.eval()
+
     wrapper_model = MuCoMiDWrapper(model, data)
 
     model_config = ModelConfig(
@@ -44,50 +32,44 @@ def explain_model(model, data, device):
         model_config=model_config
     )
 
-    ind = [0]  # Example of using a single node index for explanation
+    # Choose a node indexes to explain
+    ind = [1]
 
+    # Prepare the input data as required by GNNExplainer
+    # x = torch.cat((data["mirna_emb"], data["disease_emb"], data["pcg_emb"]), 0)
+    # edge_index = torch.cat((data["mirna_edgelist"], data["disease_edgelist"], data["ppi_edgelist"]), 0)
+    # edge_weight = torch.cat((data["mirna_edgeweight"], data["disease_edgeweight"], data["ppi_edgeweight"]), 0)
+
+    # Explain the mirna embeddings, make sure to use the right settings in the wrapper too for this.
     x = data["mirna_emb"]
-    edge_index = data["mirna_edgelist"].t()
-    edge_weight = data["mirna_edgeweight"]
-
-    # Ensure correct tensor types
-    edge_index = edge_index.long()
-    edge_weight = edge_weight.float()
-
-    print("Before any operations:")
-    print("x.shape:", x.shape)
-    print("edge_index.shape:", edge_index.shape)
-    print("edge_weight.shape:", edge_weight.shape)
+    edge_index = data["mirna_edgelist"]
 
     explanations = []
     gnn_explainer_feature_masks = []
     for node_idx in ind:
-        print(f"Attempting explanation for node {node_idx}:")
-        print(f"shapes: x: {x.shape}, edge_index: {edge_index.shape}, edge_weight: {edge_weight.shape}")
-
-        try:
-            explanation = explainer(x, edge_index=edge_index, edge_weight=edge_weight, index=node_idx)
-            feature_mask = explanation.node_mask
-            feature_importance = feature_mask.sum(dim=0)
-            gnn_explainer_feature_masks.append(feature_importance)
-            explanations.append(explanation)
-            visualize_feature_importance(explanation, node_idx)
-        except Exception as e:
-            print("Error during model explanation:", e)
-            break  # Optional: Break on first error to focus debugging
+        explanation = explainer(x, edge_index, index=node_idx)
+        # Access the 'node_mask' attribute directly
+        feature_mask = explanation.node_mask
+        # Sum up the feature mask across all nodes to get the feature importance scores
+        feature_importance = feature_mask.sum(dim=0)
+        gnn_explainer_feature_masks.append(feature_importance)
+        explanations.append(explanation)
+        visualize_feature_importance(explanation, node_idx)
 
     return explanations, gnn_explainer_feature_masks
-
 
 
 def main():
     device = get_device()
     data = load_data(device)
 
+    # Initialize the model
     model = MuCoMiD(32, 32).to(device)
     model.load_state_dict(load_hybrid_model())
 
+    # Explain the model
     _, _ = explain_model(model, data, device)
+
 
 if __name__ == "__main__":
     main()
