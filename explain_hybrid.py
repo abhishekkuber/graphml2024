@@ -1,9 +1,19 @@
+"""
+To use the explainer from GNNExplainer, the input data must be in the following format:
+x(torch.Tensor): Shape (N, F) where N is the number of nodes and F is the number of features per node.
+edge_index(torch.Tensor): Shape (2, E) where E is the number of edges.
+edge_weight(torch.Tensor): Shape (E,) where E is the number of edges (optional).
+index (int): shape () or (I,) where I is the number of nodes to explain (optional).
+"""
+
 import torch
 from torch_geometric.explain import GNNExplainer, ExplainerConfig, ModelConfig, Explainer
 from model import MuCoMiD, MuCoMiDWrapper
 import matplotlib.pyplot as plt
 from torch_geometric.utils import add_remaining_self_loops
 from utils import *
+
+
 
 
 
