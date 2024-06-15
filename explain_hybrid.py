@@ -59,18 +59,6 @@ def explain_model(model, data, device):
     print("edge_index.shape:", edge_index.shape)
     print("edge_weight.shape:", edge_weight.shape)
 
-    # Validate that edge_index does not have invalid node indices
-    num_nodes = x.size(0)
-    if edge_index.max().item() >= num_nodes:
-        raise ValueError("Edge index contains invalid node indices.")
-
-    edge_index, edge_weight = add_remaining_self_loops(
-        edge_index, edge_weight, fill_value=1, num_nodes=num_nodes)
-
-    print("After adding self-loops:")
-    print("edge_index.shape:", edge_index.shape)
-    print("edge_weight.shape:", edge_weight.shape)
-
     explanations = []
     gnn_explainer_feature_masks = []
     for node_idx in ind:
