@@ -54,19 +54,3 @@ class MuCoMiD(nn.Module):
 
         return assoc_out.squeeze(), mirna_pcg_out.squeeze(), disease_pcg_out.squeeze()
 
-
-class MuCoMiDWrapper(nn.Module):
-    def __init__(self, model, data):
-        super(MuCoMiDWrapper, self).__init__()
-        self.model = model
-        self.data = data
-
-    def forward(self, x, edge_index, edge_weight=None):
-        # Reconstruct the data dictionary expected by MuCoMiD
-        data = self.data
-        data["mirna_emb"] = x
-        data["mirna_edgelist"] = edge_index
-
-        # Call the model with the reconstructed data dictionary
-        result, _, _ = self.model(data, self.data["train_tensor"])
-        return result
