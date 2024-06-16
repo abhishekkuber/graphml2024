@@ -4,12 +4,15 @@ from model import MuCoMiD, MuCoMiDWrapper  # Import your model definition
 import matplotlib.pyplot as plt
 
 from utils import *
-
+import os  # Import the os module
 
 def visualize_feature_importance(explanation, node_idx, top_k=50):
     path = f"explanations/top50_features_node{node_idx}.png"
+    # Ensure the directory exists before saving the file
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     explanation.visualize_feature_importance(path, top_k=top_k)
     print(f"Feature importance plot for node {node_idx} has been saved to '{path}'")
+
 
 
 def explain_model(model, data, device):
@@ -55,6 +58,7 @@ def explain_model(model, data, device):
         gnn_explainer_feature_masks.append(feature_importance)
         explanations.append(explanation)
         visualize_feature_importance(explanation, node_idx)
+
 
     return explanations, gnn_explainer_feature_masks
 
