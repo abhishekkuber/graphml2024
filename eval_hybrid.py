@@ -1,17 +1,14 @@
-#this file evaluates the performance of the hybrid model (mpm+cmtt)
+# This file evaluates the performance of the hybrid model (mpm+cmtt)
 from matplotlib import pyplot as plt
-
 from model import *
 from utils import *
 import torch as t
 import pandas as pd
-
 import os
 
 def ensure_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
-
 
 def read_int_data(pos_path, neg_path):
     pos_df = pd.read_csv(pos_path).values.tolist()
@@ -20,57 +17,38 @@ def read_int_data(pos_path, neg_path):
     int_lbl = [1] * len(pos_df) + [0] * len(neg_df)
     return pos_df, t.LongTensor(int_edges), t.FloatTensor(int_lbl)
 
-# To understand about Pareto optimality, this reddit post helped 
-# https://www.reddit.com/r/statistics/comments/ogq7p3/d_understanding_pareto_optimality/
-
 def objectives(loss0, loss1, loss2):
-        return np.array([loss0.item(), loss1.item(), loss2.item()])
+    return np.array([loss0.item(), loss1.item(), loss2.item()])
 
-# A set of scores s1 is said to Pareto dominate another set s2 if all
-# elements of s1 are less than or equal to the corresponding elements of s2, 
-# and at least one element of s1 is strictly less than the corresponding element of s2.
 def check_pareto_dom(s1, s2):
     if np.all(s1 <= s2) and np.any(s1 < s2):
         return True
     return False
 
 def get_pareto_front(losses, weights, num_samples=100):
-    # Randomly generate a set of weights from a uniform distribution
     solutions = np.random.uniform(size=(num_samples, len(weights)))
     pareto_front = []
     for solution in solutions:
-        # For each solution, calculate the weighted loss
         scores = np.dot(losses, solution)
-        
-        # Check if each solution is Pareto dominated by any other solution.
-        # The solutions that are not Pareto dominated by any other form the Pareto front, representing the optimal trade-offs among the objectives.
         if not any(check_pareto_dom(scores, np.dot(losses, other)) for other in solutions):
             pareto_front.append((solution, scores))
-
     return pareto_front
 
 def main():
-
-
     criterion = t.nn.BCELoss()
     l1loss = t.nn.MSELoss()
-
-    # Check for CUDA availability
     device = get_device()
     data = load_data(device)
-
 
     criterion = criterion.to(device)
     l1loss = l1loss.to(device)
 
-    pos_test_path = 'data/test_data/new_mirna_pos.csv'  # change this for a different test dataset
+    pos_test_path = 'data/test_data/new_mirna_pos.csv'
     neg_test_pre = pos_test_path.replace('_pos.csv', '_neg.csv')
     datasrc = pos_test_path[pos_test_path.rfind('/') + 1:].replace('_pos.csv', '')
 
     def eval(model, neg_rates, datasrc=datasrc, print_results=True):
-        ## evaluate the model
         all_scores = list()
-
         avg_acc = 0
         avg_loss = 0
 
@@ -93,12 +71,8 @@ def main():
                 if print_results: print(cur_score)
                 all_scores.append(cur_score)
 
-                # #############
-                # Loss and acc
                 avg_acc += acc
-
-                tloss0, tloss1, tloss2 = criterion(assoc_out, test_lbl), l1loss(mirna_pcg_out, data["mirna_pcg_weight"]), l1loss(disease_pcg_out,
-                                                                                                                         data["disease_pcg_weight"])
+                tloss0, tloss1, tloss2 = criterion(assoc_out, test_lbl), l1loss(mirna_pcg_out, data["mirna_pcg_weight"]), l1loss(disease_pcg_out, data["disease_pcg_weight"])
                 tloss = w1 * tloss0 + w2 * tloss1 + w3 * tloss2
                 test_loss = tloss.item()
                 avg_loss += test_loss
@@ -108,8 +82,6 @@ def main():
 
         return all_scores, avg_acc, avg_loss
 
-    # ############################
-    ## train the model
     w1 = 1.0
     w2 = 1.0
     w3 = 1.0
@@ -126,13 +98,6 @@ def main():
         loss1 = l1loss(mirna_pcg_out, data["mirna_pcg_weight"])
         loss2 = l1loss(disease_pcg_out, data["disease_pcg_weight"])
         loss = w1 * loss0 + w2 * loss1 + w3 * loss2
-        
-        # l1 = loss0.item()
-        # l2 = loss1.item()
-        # l3 = loss2.item()
-        # w1 = 1
-        # w2 = l3 / (l1 + l2 + l3 + 1e-10)
-        # w3 = l2 / (l1 + l2 + l3 + 1e-10)
 
         current_objectives = objectives(loss0, loss1, loss2)
         pareto_front = get_pareto_front(current_objectives, np.array([w1, w2, w3]))
@@ -148,51 +113,47 @@ def main():
 
         if epoch % 1 == 0:
             train_losses.append(loss_val)
-
             all_scores, avg_acc, avg_loss = eval(model, neg_rates=[5], print_results=False)
             test_losses.append(avg_loss)
             test_accuracies.append(avg_acc)
-
             print('Test loss: ', avg_loss, ' Test acc: ', avg_acc)
 
-    # Save model after training
     save_hybrid_model(model)
-
     ensure_dir('plots/pareto')
 
-    # Plot the losses and test accuracy
+    # Improved plotting section
     plt.figure()
-    plt.plot(train_losses, label='Training loss')
-    plt.plot(test_losses, label='Test loss')
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(test_losses, label='Test Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Test Loss over Epochs')
     plt.legend()
-    plt.title('Losses')
+    plt.grid(True)
     plt.savefig('plots/pareto/pareto_loss_curves.png')
 
     plt.figure()
-    plt.plot(test_accuracies, label='Test accuracy')
+    plt.plot(test_accuracies, label='Test Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Test Accuracy over Epochs')
     plt.legend()
-    plt.title('Test Accuracy')
+    plt.grid(True)
     plt.savefig('plots/pareto/pareto_test_acc.png')
 
     np.save('plots/pareto/pareto_train_losses.npy', train_losses)
     np.save('plots/pareto/pareto_test_losses.npy', test_losses)
     np.save('plots/pareto/pareto_test_accuracies.npy', test_accuracies)
 
-
-    ## evaluate the model
     all_scores, _, _ = eval(model, neg_rates=[1, 5, 10])
-
-    # Ensure the directory for evaluation results exists
     ensure_dir('data/eval_results')
 
-    ## write the results into file
     writer = open('data/eval_results/hybrid_output.txt', 'w+')
     writer.write('data,run,auc_score, ap_score, sn, sp, acc, prec, rec, f1\n')
     for line in all_scores:
         writer.write(','.join(line))
         writer.write('\n')
     writer.close()
-
 
 if __name__ == "__main__":
     main()

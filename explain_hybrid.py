@@ -3,6 +3,17 @@ from torch_geometric.explain import GNNExplainer, ExplainerConfig, ModelConfig, 
 from model import MuCoMiD, MuCoMiDWrapper  # Import your model definition
 import matplotlib.pyplot as plt
 
+
+def plot_loss(loss_history):
+    plt.figure(figsize=(10, 5))
+    plt.plot(loss_history, label='Training Loss')
+    plt.title('Training Loss per Epoch')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 from utils import *
 import os  # Import the os module
 
@@ -28,7 +39,7 @@ def explain_model(model, data, device):
 
     explainer = Explainer(
         model=wrapper_model,
-        algorithm=GNNExplainer(epochs=200),
+        algorithm=GNNExplainer(epochs=2000, lr=0.01),
         explanation_type='model',
         node_mask_type='attributes',
         edge_mask_type='object',
@@ -58,7 +69,6 @@ def explain_model(model, data, device):
         gnn_explainer_feature_masks.append(feature_importance)
         explanations.append(explanation)
         visualize_feature_importance(explanation, node_idx)
-
 
     return explanations, gnn_explainer_feature_masks
 
