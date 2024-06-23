@@ -216,6 +216,7 @@ def get_device():
 
 ## SAVING AND LOADING MODELS
 HYBRID_MODEL_PATH = "trained_models"
+HYBRID_MODEL_EPOCH_COUNT = 200
 
 
 def get_hybrid_model_path():

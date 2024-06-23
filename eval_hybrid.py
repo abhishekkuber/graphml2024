@@ -90,7 +90,7 @@ def main():
 
     train_losses, test_losses, test_accuracies = list(), list(), list()
 
-    for epoch in range(0, 200):
+    for epoch in range(0, HYBRID_MODEL_EPOCH_COUNT):
         model.train()
         model.zero_grad()
         assoc_out, mirna_pcg_out, disease_pcg_out = model(data, data["train_tensor"])
