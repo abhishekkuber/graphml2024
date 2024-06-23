@@ -17,7 +17,7 @@ def plot_loss(loss_history):
 from utils import *
 import os  # Import the os module
 
-def visualize_feature_importance(explanation, node_idx, top_k=50):
+def visualize_feature_importance(explanation, node_idx, top_k=16):
     path = f"explanations/top50_features_node{node_idx}.png"
     # Ensure the directory exists before saving the file
     os.makedirs(os.path.dirname(path), exist_ok=True)
