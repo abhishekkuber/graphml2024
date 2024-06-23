@@ -7,6 +7,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils import *
 import os  # Import the os module
+import seaborn as sns
 
 
 def plot_loss(loss_history):
@@ -20,12 +21,35 @@ def plot_loss(loss_history):
     plt.show()
 
 
-def visualize_feature_importance(explanation, idx, top_k=16, task="node"):
+def visualize_feature_importance(explanation, idx, top_k=12, task="node"):
     path = f"explanations/top{top_k}_features_{task}{idx}.png"
     # Ensure the directory exists before saving the file
     os.makedirs(os.path.dirname(path), exist_ok=True)
     explanation.visualize_feature_importance(path, top_k=top_k)
     print(f"Feature importance plot for {task} {idx} has been saved to '{path}'")
+
+
+def visualize_feature_importance_heatmap(explanations, indices, top_k=12, task="node"):
+    path = f"explanations/top{top_k}_features_{task}_multiple.png"
+    # Ensure the directory exists before saving the file
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    # Get the feature importance for all indices
+    feature_importances = [explanation.node_mask.sum(dim=0).cpu().numpy() for explanation in explanations]
+
+    # Convert the list of feature importances to a numpy array
+    feature_importances = np.array(feature_importances)
+
+    # Create a heatmap
+    plt.figure(figsize=(10, 10))
+    sns.heatmap(feature_importances, cmap='viridis')
+    plt.title(f'Feature Importance for {task} {indices}')
+    plt.xlabel('Features')
+    plt.ylabel(f"{task}s")
+
+    # Save the figure
+    plt.savefig(path)
+    print(f"Feature importance heatmap for {task} {indices} has been saved to '{path}'")
 
 
 def explain_model(model, data, device, task_level):
@@ -41,7 +65,7 @@ def explain_model(model, data, device, task_level):
 
     explainer = Explainer(
         model=wrapper_model,
-        algorithm=GNNExplainer(epochs=HYBRID_MODEL_EPOCH_COUNT, lr=0.01),
+        algorithm=GNNExplainer(epochs=2000, lr=0.01),
         explanation_type='model',
         node_mask_type='attributes',
         edge_mask_type='object',
@@ -49,7 +73,7 @@ def explain_model(model, data, device, task_level):
     )
 
     # Choose a node or edge index to explain
-    ind = [1]
+    ind = [1, 2, 3]
 
     # Explain the mirna embeddings, make sure to use the right settings in the wrapper too for this.
     x = data["mirna_emb"]
@@ -66,6 +90,8 @@ def explain_model(model, data, device, task_level):
         gnn_explainer_feature_masks.append(feature_importance)
         explanations.append(explanation)
         visualize_feature_importance(explanation, idx, task=task_level)
+
+    visualize_feature_importance_heatmap(explanations, ind, task=task_level)
 
     return explanations, gnn_explainer_feature_masks
 
