@@ -1,6 +1,7 @@
-# this file evaluates the performance of the hybrid model (mpm+cmtt)
+#this file evaluates the performance of the hybrid model (mpm+cmtt)
 from matplotlib import pyplot as plt
-from simple_mlp import SimpleMLP  # Import the new MLP model
+
+from model import *
 from utils import *
 import torch as t
 import pandas as pd
@@ -41,42 +42,35 @@ def get_pareto_front(losses, weights, num_samples=100):
 
     return pareto_front
 
-def main():
+def main(hidden_dim=32):
     ## read data from files
 
     # embeddings
-    mirna = pd.read_csv('data/generated_data/mirna_emb.csv',
+    mirna = pd.read_csv('../data/generated_data/mirna_emb.csv',
                         header=None).values.tolist()
     mirna_emb = t.FloatTensor(mirna)
-    disease = pd.read_csv('data/generated_data/disease_emb.csv',
+    disease = pd.read_csv('../data/generated_data/disease_emb.csv',
                           header=None).values.tolist()
     disease_emb = t.FloatTensor(disease)
-    pcg = pd.read_csv('data/generated_data/pcg_emb.csv',
+    pcg = pd.read_csv('../data/generated_data/pcg_emb.csv',
                       header=None).values.tolist()
     pcg_emb = t.FloatTensor(pcg)
 
-    # torch.Size([1618, 32])
-    # print(mirna_emb.shape)
-    # torch.Size([3679, 32])
-    # print(disease_emb.shape)
-    # torch.Size([100, 32])
-    # print(pcg_emb.shape)
-
     # training data
     _, train_tensor, train_lbl_tensor = read_int_data(
-        'data/training_data/hmdd2_pos.csv',
-        'data/training_data/hmdd2_neg1_0.csv')
+        '../data/training_data/hmdd2_pos.csv',
+        '../data/training_data/hmdd2_neg1_0.csv')
 
     # others
     disease_onto = pd.read_csv(
-        'data/original_data/disease_onto_pos.csv').values.tolist()
-    disease_pcg = pd.read_csv('data/generated_data/disease_pcg.csv',
+        '../data/original_data/disease_onto_pos.csv').values.tolist()
+    disease_pcg = pd.read_csv('../data/generated_data/disease_pcg.csv',
                               header=None).values.tolist()
-    hppi = pd.read_csv('data/generated_data/pcg_pcg.csv',
+    hppi = pd.read_csv('../data/generated_data/pcg_pcg.csv',
                        header=None).values.tolist()
     mirna_family = pd.read_csv(
-        'data/original_data/mirna_fam_pos.csv').values.tolist()
-    mirna_pcg = pd.read_csv('data/generated_data/mirna_pcg.csv',
+        '../data/original_data/mirna_fam_pos.csv').values.tolist()
+    mirna_pcg = pd.read_csv('../data/generated_data/mirna_pcg.csv',
                             header=None).values.tolist()
 
     disease_pcg_pairs = list()
@@ -160,7 +154,7 @@ def main():
     criterion = criterion.to(device)
     l1loss = l1loss.to(device)
 
-    pos_test_path = 'data/test_data/new_mirna_pos.csv'  # change this for a different test dataset
+    pos_test_path = '../data/test_data/new_mirna_pos.csv'  # change this for a different test dataset
     neg_test_pre = pos_test_path.replace('_pos.csv', '_neg.csv')
     datasrc = pos_test_path[pos_test_path.rfind('/') + 1:].replace('_pos.csv', '')
 
@@ -168,12 +162,10 @@ def main():
         ## evaluate the model
         all_scores = list()
 
-        avg_acc = 0
-        avg_loss = 0
+        avg_metrics = list()
 
         for testrate in neg_rates:
-            avg_acc = 0
-            avg_loss = 0
+            avg_acc, avg_auc, avg_ap, avg_rec, avg_f1, avg_loss = 0, 0, 0, 0, 0, 0
 
             for testset in range(10):
                 cur_score = [datasrc, str(testrate), str(testset), str(1)]
@@ -181,38 +173,43 @@ def main():
                 _, test_tensor, test_lbl = read_int_data(pos_test_path, neg_test_path)
                 datasrc = pos_test_path[pos_test_path.rfind('/') + 1:].replace('.csv', '')
                 test_tensor = test_tensor.to(device)
-                
-                mirna_vec_test = mirna_emb[test_tensor[:,0]]
-                disease_vec_test = disease_emb[test_tensor[:,1]]
-                x_test = t.cat((mirna_vec_test, disease_vec_test), dim=1)
-                
-                assoc_out = model(x_test.float())
+                assoc_out, mirna_pcg_out, disease_pcg_out = model(mirna_emb, disease_emb, pcg_emb, mirna_edgelist,
+                                                                  mirna_edgeweight, disease_edgelist, disease_edgeweight,
+                                                                  ppi_edgelist, ppi_edgeweight, mirna_pcg_pairs, disease_pcg_pairs, test_tensor)
 
                 auc_score, ap_score, sn, sp, acc, prec, rec, f1, mcc = get_all_score(test_lbl, assoc_out.detach().cpu().numpy())
-                tmp_score = [auc_score, ap_score, sn, sp, acc, prec, rec, f1, mcc]
+                tmp_score = [auc_score, ap_score, sn, sp, acc, prec, rec, f1]
                 for ftmp in tmp_score:
                     cur_score.append(str(round(ftmp, 5)))
                 if print_results: print(cur_score)
                 all_scores.append(cur_score)
 
                 # #############
-                # Loss and acc
+                # Loss and metrics
                 avg_acc += acc
+                avg_auc += auc_score
+                avg_ap += ap_score
+                avg_rec += rec
+                avg_f1 += f1
 
-                tloss0 = criterion(assoc_out, test_lbl)
-                test_loss = tloss0.item()
+                tloss0, tloss1, tloss2 = criterion(assoc_out, test_lbl), l1loss(mirna_pcg_out, mirna_pcg_weight), l1loss(disease_pcg_out,
+                                                                                                                         disease_pcg_weight)
+                tloss = w1 * tloss0 + w2 * tloss1 + w3 * tloss2
+                test_loss = tloss.item()
                 avg_loss += test_loss
 
-            avg_acc /= 10
             avg_loss /= 10
+            avg_acc, avg_auc, avg_ap, avg_rec, avg_f1 = avg_acc / 10, avg_auc / 10, avg_ap / 10, avg_rec / 10, avg_f1 / 10
+            avg_metrics.append([avg_auc, avg_acc, avg_ap, avg_rec, avg_f1])
 
-        return all_scores, avg_acc, avg_loss
+        return all_scores, avg_loss, avg_metrics
 
     # ############################
     ## train the model
-    # input_dim = train_tensor.size(1)
-    hidden_dim = 128 
-    model = SimpleMLP(input_dim=64, hidden_dim=hidden_dim).to(device)
+    w1 = 1.0
+    w2 = 1.0
+    w3 = 1.0
+    model = MuCoMiD(32, hidden_dim).to(device)
     optimizer = t.optim.Adam(model.parameters(), lr=0.001)
 
     train_losses, test_losses, test_accuracies = list(), list(), list()
@@ -220,66 +217,79 @@ def main():
     for epoch in range(0, 200):
         model.train()
         model.zero_grad()
+        assoc_out, mirna_pcg_out, disease_pcg_out = model(mirna_emb,
+                                                          disease_emb, pcg_emb,
+                                                          mirna_edgelist,
+                                                          mirna_edgeweight,
+                                                          disease_edgelist,
+                                                          disease_edgeweight,
+                                                          ppi_edgelist,
+                                                          ppi_edgeweight,
+                                                          mirna_pcg_pairs,
+                                                          disease_pcg_pairs,
+                                                          train_tensor)
+        loss0 = criterion(assoc_out, train_lbl_tensor)
+        loss1 = l1loss(mirna_pcg_out, mirna_pcg_weight)
+        loss2 = l1loss(disease_pcg_out, disease_pcg_weight)
+        loss = w1 * loss0 + w2 * loss1 + w3 * loss2
         
-        mirna_vec = mirna_emb[train_tensor[:,0]]
-        disease_vec = disease_emb[train_tensor[:,1]]
-        x = t.cat((mirna_vec, disease_vec), dim=1)
+        # l1 = loss0.item()
+        # l2 = loss1.item()
+        # l3 = loss2.item()
+        # w1 = 1
+        # w2 = l3 / (l1 + l2 + l3 + 1e-10)
+        # w3 = l2 / (l1 + l2 + l3 + 1e-10)
 
-        # Both of them are of size : torch.Size([9184, 32])
+        current_objectives = objectives(loss0, loss1, loss2)
+        pareto_front = get_pareto_front(current_objectives, np.array([w1, w2, w3]))
+        w1 = pareto_front[0][0][0]
+        w2 = pareto_front[0][0][1]
+        w3 = pareto_front[0][0][2]
 
-        assoc_out = model(x.float())
-        # torch.Size([9184, 1])
-        # print(assoc_out.shape)
-        # torch.Size([9184])
-        # print(train_lbl_tensor.shape)
-        loss = criterion(assoc_out, train_lbl_tensor)
-        
         loss.backward()
         optimizer.step()
         loss_val = loss.item()
 
         print('Epoch: ', epoch, ' loss: ', loss_val / train_lbl_tensor.size(0))
 
-        if epoch % 1 == 0:
+        if epoch % 20 == 0:
             train_losses.append(loss_val)
 
-            all_scores, avg_acc, avg_loss = eval(model, neg_rates=[5], print_results=False)
+            all_scores, avg_loss, avg_metrics = eval(model, neg_rates=[1,5,10], print_results=False)
             test_losses.append(avg_loss)
-            test_accuracies.append(avg_acc)
+            test_accuracies.append(avg_metrics[0][4])
 
-            print('Test loss: ', avg_loss, ' Test acc: ', avg_acc)
+            print('Test loss: ', avg_loss, ' Test acc: ', avg_metrics[0][4])
 
 
     # Plot the losses and test accuracy
-    plt.figure()
-    plt.plot(train_losses, label='Training loss')
-    plt.plot(test_losses, label='Test loss')
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(test_losses, label='Test Loss')
     plt.legend()
-    plt.title('Losses')
-    plt.savefig('plots/baseline/baseline_loss_curves.png')
+    plt.show()
 
-    plt.figure()
-    plt.plot(test_accuracies, label='Test accuracy')
+    plt.plot(test_accuracies, label='Test Accuracy')
     plt.legend()
-    plt.title('Test Accuracy')
-    plt.savefig('plots/baseline/baseline_test_acc.png')
-
-    np.save('plots/baseline/baseline_train_losses.npy', train_losses)
-    np.save('plots/baseline/baseline_test_losses.npy', test_losses)
-    np.save('plots/baseline/baseline_test_accuracies.npy', test_accuracies)
-
+    plt.show()
 
     ## evaluate the model
-    all_scores, _, _ = eval(model, neg_rates=[10])
+    neg_rates = [1, 5, 10]
+    all_scores, _, avg_metrics = eval(model, neg_rates, print_results=False)
 
     ## write the results into file
-    writer = open('data/eval_results/baseline_output.txt', 'w+')
-    writer.write('data,run,auc_score, ap_score, sn, sp, acc, prec, rec, f1, mcc\n')
-    for line in all_scores:
+    if not os.path.exists('./results'): os.makedirs('./results')
+    writer = open(f'./results/hidden_dim_{hidden_dim}.txt', 'w+')
+    writer.write('data,neg_rate,avg_auc,avg_acc,avg_ap,avg_rec,avg_f1\n')
+    for idx, line in enumerate(avg_metrics):
+        line = [str(item) for item in line]
+        line = [datasrc, str(neg_rates[idx])] + line
         writer.write(','.join(line))
         writer.write('\n')
     writer.close()
 
 
 if __name__ == "__main__":
-    main()
+    main(hidden_dim=32)
+    main(hidden_dim=64)
+    main(hidden_dim=128)
+    main(hidden_dim=256)
