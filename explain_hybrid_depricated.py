@@ -16,7 +16,8 @@ def explain_model(model, data, device, ind):
     wrapper_model = MuCoMiDWrapper(model, data)
     x = data["mirna_emb"]
     edge_index = data["mirna_edgelist"].t()
-    explainer = GNNExplainer_(wrapper_model, epochs=100)
+
+    explainer = GNNExplainer_(wrapper_model, epochs=1000)
 
     explanations_gnn_explainer = []
     for i in ind:
@@ -33,11 +34,11 @@ def explain_model(model, data, device, ind):
     for explanation in explanations_gnn_explainer:
         feature_importance += explanation[0].squeeze()
 
-    plt.bar(range(x.shape[1]), feature_importance)
-    plt.xlabel('Feature')
-    plt.ylabel('Importance')
-    plt.title('Feature Importance')
-    plt.show()
+    # plt.bar(range(x.shape[1]), feature_importance)
+    # plt.xlabel('Feature')
+    # plt.ylabel('Importance')
+    # plt.title('Feature Importance')
+    # plt.show()
 
     top_k = 32
     top_k_indices = feature_importance.argsort(descending=True)[:top_k]
@@ -52,12 +53,12 @@ def explain_model(model, data, device, ind):
     for explanation in explanations_gnn_explainer:
         edge_importance += explanation[1].squeeze()
 
-    # Plotting total edge importance
-    plt.bar(range(len(edge_importance)), edge_importance)
-    plt.xlabel('Edge')
-    plt.ylabel('Importance')
-    plt.title('Edge Importance')
-    plt.show()
+    # # Plotting total edge importance
+    # plt.bar(range(len(edge_importance)), edge_importance)
+    # plt.xlabel('Edge')
+    # plt.ylabel('Importance')
+    # plt.title('Edge Importance')
+    # plt.show()
 
 
     top_k_indices = edge_importance.argsort(descending=True)[:top_k]
@@ -77,7 +78,7 @@ def main():
     model.load_state_dict(load_hybrid_model())
 
     # Explain the model
-    explain_model(model, data, device, ind=[1,2,3])
+    explain_model(model, data, device, ind=[1,2,3,4,5,6,7,8,9])
 
 
 if __name__ == "__main__":

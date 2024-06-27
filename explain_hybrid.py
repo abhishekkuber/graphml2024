@@ -52,7 +52,7 @@ def visualize_feature_importance_heatmap(explanations, indices, top_k=12, task="
     print(f"Feature importance heatmap for {task} {indices} has been saved to '{path}'")
 
 
-def explain_model(model, data, device, task_level):
+def explain_model(model, data, device, ind = [1, 2, 3], task_level='node', visualize=False):
     model.eval()
 
     wrapper_model = MuCoMiDWrapper(model, data)
@@ -72,9 +72,6 @@ def explain_model(model, data, device, task_level):
         model_config=model_config
     )
 
-    # Choose a node or edge index to explain
-    ind = [1, 2, 3]
-
     # Explain the mirna embeddings, make sure to use the right settings in the wrapper too for this.
     x = data["mirna_emb"]
     edge_index = data["mirna_edgelist"].t()
@@ -83,13 +80,14 @@ def explain_model(model, data, device, task_level):
     gnn_explainer_feature_masks = []
     for idx in ind:
         explanation = explainer(x, edge_index, index=idx)
-        # Access the 'node_mask' attribute directly
+        explanations.append(explanation)
+
         feature_mask = explanation.node_mask
-        # Sum up the feature mask across all nodes to get the feature importance scores
         feature_importance = feature_mask.sum(dim=0)
         gnn_explainer_feature_masks.append(feature_importance)
-        explanations.append(explanation)
-        visualize_feature_importance(explanation, idx, task=task_level)
+
+        if visualize:
+            visualize_feature_importance(explanation, idx, task=task_level)
 
     visualize_feature_importance_heatmap(explanations, ind, task=task_level)
 
@@ -105,8 +103,9 @@ def main():
     model.load_state_dict(load_hybrid_model())
 
     # Explain the model
-    _, _ = explain_model(model, data, device, task_level='node')
-    _, _ = explain_model(model, data, device, task_level='edge')
+    ind = [*range(0,32)]
+    _, _ = explain_model(model, data, device, ind=ind, task_level='node')
+    #_, _ = explain_model(model, data, device, task_level='edge')
 
 
 if __name__ == "__main__":
