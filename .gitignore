@@ -2,3 +2,8 @@
 /data/
 data.zip
 /cmtt-master/
+__pycache__/
+requirements.py
+trained_models/*
+!trained_models/.gitkeep
+explanations/

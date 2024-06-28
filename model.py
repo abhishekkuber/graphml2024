@@ -26,25 +26,26 @@ class MuCoMiD(nn.Module):
         self.relu = nn.ReLU()
 
     # order in the global network: virus -> human -> go
-    def forward(self, memb, demb, pemb, mirna_edgelist, mirna_edgeweight, disease_edge_list, disease_edgeweight, pcg_edge_list, pcg_edgeweight, mirna_pcg_pairs, disease_pcg_pairs, mirna_disease_pairs):
-        mhid = self.mgcn(memb, mirna_edgelist.t(), mirna_edgeweight)
-        dhid = self.dgcn(demb, disease_edge_list.t(), disease_edgeweight)
-        phid = self.pgcn(pemb, pcg_edge_list.t(), pcg_edgeweight)
+    def forward(self, data, label_tensor):
+
+        mhid = self.mgcn(data["mirna_emb"], data["mirna_edgelist"].t(), data["mirna_edgeweight"])
+        dhid = self.dgcn(data["disease_emb"], data["disease_edgelist"].t(), data["disease_edgeweight"])
+        phid = self.pgcn(data["pcg_emb"], data["ppi_edgelist"].t(), data["ppi_edgeweight"])
 
         mhid = self.relu(mhid)
         dhid = self.relu(dhid)
         phid = self.relu(phid)
 
-        mirna_vec = mhid[mirna_disease_pairs[:,0]]
-        disease_vec = dhid[mirna_disease_pairs[:, 1]]
+        mirna_vec = mhid[label_tensor[:,0]]
+        disease_vec = dhid[label_tensor[:, 1]]
         assoc_vec = mirna_vec * disease_vec
 
-        vec1 = mhid[mirna_pcg_pairs[:,0]]
-        vec2 = phid[mirna_pcg_pairs[:, 1]]
+        vec1 = mhid[data["mirna_pcg_pairs"][:,0]]
+        vec2 = phid[data["mirna_pcg_pairs"][:, 1]]
         mp_vec = vec1 * vec2
 
-        vec1 = dhid[disease_pcg_pairs[:,0]]
-        vec2 = phid[disease_pcg_pairs[:, 1]]
+        vec1 = dhid[data["disease_pcg_pairs"][:,0]]
+        vec2 = phid[data["disease_pcg_pairs"][:, 1]]
         dp_vec = vec1 * vec2
 
         assoc_out = self.sigmoid(self.assoc_clf(assoc_vec))
@@ -52,3 +53,12 @@ class MuCoMiD(nn.Module):
         disease_pcg_out = self.sigmoid(self.disease_pcg(dp_vec))
 
         return assoc_out.squeeze(), mirna_pcg_out.squeeze(), disease_pcg_out.squeeze()
+
+class MuCoMiDWrapper(nn.Module):
+    def __init__(self, model, data):
+        super(MuCoMiDWrapper, self).__init__()
+        self.model = model
+        self.data = data
+
+    def forward(self, x, edge_index, edge_weight=None):
+        return self.model.relu(self.model.mgcn(x, edge_index, edge_weight))
